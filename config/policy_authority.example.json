@@ -1,0 +1,4 @@
+{
+  "authority_fingerprint": "REPLACE_WITH_PROVISIONED_FINGERPRINT",
+  "public_key": "REPLACE_WITH_BASE64URL_PUBLIC_KEY"
+}

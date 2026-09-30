@@ -1,0 +1,20 @@
+HAEP 0.1 — CRYPTO VECTOR 002
+
+This file is generated as a reference artifact.
+Run:
+
+    py vectors\vector_002.py
+
+The exact fingerprints, canonical JSON, signature, and wire envelope printed by
+the implementation are the authoritative test-vector outputs for this local
+implementation.
+
+Purpose:
+- prove HAEP 0.1 signed-envelope construction;
+- prove REQUEST signing by the Controller identity;
+- prove verification with the Controller public key;
+- prove that changing the signed payload causes verification to fail.
+
+Important:
+The deterministic seeds in vector_002.py are TEST-ONLY and must never be used
+for Hermes, TEST-0001, or any real deployment identity.

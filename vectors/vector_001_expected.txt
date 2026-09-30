@@ -1,0 +1,21 @@
+HAEP 0.1 — CRYPTO VECTOR 001
+
+TEST SEED (public test vector only):
+000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f
+
+PUBLIC KEY (Base64URL, no padding):
+A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg
+
+FINGERPRINT / kid (SHA-256 raw public key, lowercase hex):
+56475aa75463474c0285df5dbf2bcab73da651358839e9b77481b2eab107708c
+
+CANONICAL JCS:
+{"haep_version":"0.1","kid":"56475aa75463474c0285df5dbf2bcab73da651358839e9b77481b2eab107708c","message_type":"TEST_VECTOR","payload":{"message":"HAEP Crypto Vector 001","value":42},"request_id":"00000000-0000-0000-0000-000000000001"}
+
+SIGNATURE (Base64URL, no padding):
+rL8TXI-1iE0rhgP4xVbepXq33B-0N7lBi363UZMSkBEnnZpurVmOEoRb29tbbhDeWI0Sl_CnQBFI-aNby3bgCA
+
+TAMPER TEST:
+Original value = 42
+Modified value = 43
+Expected result = signature verification fails

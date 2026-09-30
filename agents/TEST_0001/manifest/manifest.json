@@ -1,0 +1,31 @@
+{
+  "agent_id": "TEST-0001",
+  "name": "HAEP Test Agent",
+  "domain": "test",
+  "haep_version": "0.1",
+  "agent_version": "0.1.0",
+  "fingerprint": "eb84caeb8b166368d8ecdb214fe188e798d7b00bd10d1abfbd84163b5d13de83",
+  "capabilities": [
+    {
+      "name": "test.status",
+      "version": "1",
+      "access": "READ"
+    },
+    {
+      "name": "test.read",
+      "version": "1",
+      "access": "READ"
+    },
+    {
+      "name": "test.echo",
+      "version": "1",
+      "access": "WRITE"
+    },
+    {
+      "name": "test.deny_me",
+      "version": "1",
+      "access": "READ"
+    }
+  ],
+  "signature": "xAxTQ8c6FCNzurKejMrU8slr1xD-sk2_AsIi_axK3DZR8oMzPaplZhpVyxYusAOjIudkyfgXqwxLlbV0FpQWBw"
+}

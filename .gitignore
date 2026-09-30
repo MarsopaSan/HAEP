@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.vscode/
+.vs/
+*.sqlite
+*.db
+.env
+.env.*
+*.pem
+*.key
+secrets/
+identity/
+**/identity/private_key.pem
