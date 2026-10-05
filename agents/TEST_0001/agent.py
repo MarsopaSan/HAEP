@@ -166,6 +166,30 @@ class HaepAgent:
         for resource in self.resource_registry.list():
             print(f"  {resource.resource_id} | {resource.name}")
 
+    def open_pairing_window(self, seconds: int = 60) -> None:
+        """Habilita temporalmente nuevos pairings con aprobación OOB."""
+        self.pairing.open_pairing_window(seconds)
+
+    def approve_pairing(self, request_id: str, controller_fingerprint: str) -> bool:
+        """Aprueba localmente un pairing pendiente."""
+        approved = self.pairing.approve_pairing(
+            request_id=request_id,
+            controller_fingerprint=controller_fingerprint,
+            trust_manager=self.trust,
+        )
+        if approved:
+            self.controller_fingerprint = controller_fingerprint
+            if self.controller_public_key is not None and self.policy_authority_public_key is not None:
+                self.processor = RequestProcessor(
+                    identity=self.identity,
+                    controller_public_key=self.controller_public_key,
+                    registry=self.capability_registry,
+                    resource_registry=self.resource_registry,
+                    policy_authority_public_key=self.policy_authority_public_key,
+                    trust_manager=self.trust,
+                )
+        return approved
+
     def handle_message(self, envelope: Envelope) -> Envelope:
         if self.identity is None:
             raise RuntimeError("Agent not started. Call start() first.")
@@ -193,12 +217,14 @@ class HaepAgent:
             trust_manager=self.trust,
         )
 
-        if response.payload.get("status") == "PAIRED":
+        if response.payload.get("status") in ("PAIRED", "PAIRING_PENDING"):
             pub_b64 = request.payload.get("controller_public_key")
             self.controller_public_key = b64url_decode(pub_b64)
             self.controller_fingerprint = request.payload.get(
                 "controller_fingerprint"
             )
+
+        if response.payload.get("status") == "PAIRED":
             if self.policy_authority_public_key is None:
                 self.processor = None
                 return response

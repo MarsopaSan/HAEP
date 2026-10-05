@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 from uuid import uuid4
 
+
 from .envelope import Envelope
 from .identity import Identity, b64url_decode, b64url_encode
 from .time_policy import TimePolicy
@@ -27,6 +28,54 @@ class PairingService:
         self.time_policy = time_policy or TimePolicy(max_ttl_seconds=120)
         # Si True, solo acepta controllers ya registrados en allowlist.
         self.require_known_controller = require_known_controller
+        self._pairing_window_expires_at = None
+        self._pending_requests = {}
+        self._used_request_ids = set()
+        self._used_nonces = set()
+
+    def open_pairing_window(self, seconds: int = 60) -> None:
+        """Abre una ventana temporal para aceptar nuevos pairings OOB."""
+        if not isinstance(seconds, int) or isinstance(seconds, bool) or seconds <= 0:
+            raise ValueError("seconds debe ser un entero positivo")
+        self._pairing_window_expires_at = datetime.now(timezone.utc).timestamp() + seconds
+
+    def pairing_window_open(self) -> bool:
+        """Indica si la ventana OOB de pairing está actualmente abierta."""
+        if self._pairing_window_expires_at is None:
+            return False
+        if datetime.now(timezone.utc).timestamp() >= self._pairing_window_expires_at:
+            self._pairing_window_expires_at = None
+            return False
+        return True
+
+    def approve_pairing(
+        self,
+        request_id: str,
+        controller_fingerprint: str,
+        trust_manager: TrustManager,
+    ) -> bool:
+        """Aprueba explícitamente un pairing pendiente mediante OOB."""
+        pending = self._pending_requests.get(request_id)
+        if pending is None or pending["controller_fingerprint"] != controller_fingerprint:
+            return False
+        if not self.pairing_window_open():
+            self._pending_requests.pop(request_id, None)
+            return False
+
+        time_decision = self.time_policy.validate(
+            issued_at=pending["issued_at"],
+            ttl=pending["ttl"],
+        )
+        if not time_decision.valid:
+            self._pending_requests.pop(request_id, None)
+            return False
+
+        try:
+            trust_manager.pair(controller_fingerprint)
+        except RuntimeError:
+            return False
+        self._pending_requests.pop(request_id, None)
+        return True
 
     # ------------------------------------------------------------------
     # Lado Controller (Hermes)
@@ -154,6 +203,14 @@ class PairingService:
                 {"error": time_decision.reason},
             )
 
+        if request.request_id in self._used_request_ids or nonce in self._used_nonces:
+            return self._response(
+                agent_identity,
+                request.request_id,
+                "DENIED",
+                {"error": "PAIRING_REPLAY"},
+            )
+
         if trust_manager.state == TrustState.REVOKED:
             return self._response(
                 agent_identity,
@@ -172,21 +229,50 @@ class PairingService:
                 {"error": "UNKNOWN_CONTROLLER"},
             )
 
-        # Éxito: establecer sesión de confianza
-        try:
-            trust_manager.pair(controller_fingerprint)
-        except RuntimeError as exc:
+        # Un controller ya conocido puede re-certificar la sesión sin OOB.
+        if trust_manager.is_known(controller_fingerprint):
+            try:
+                trust_manager.pair(controller_fingerprint)
+            except RuntimeError as exc:
+                return self._response(
+                    agent_identity,
+                    request.request_id,
+                    "DENIED",
+                    {"error": str(exc)},
+                )
+            self._used_request_ids.add(request.request_id)
+            self._used_nonces.add(nonce)
+            return self._response(
+                agent_identity,
+                request.request_id,
+                "PAIRED",
+                {
+                    "agent_fingerprint": agent_identity.fingerprint,
+                    "controller_fingerprint": controller_fingerprint,
+                },
+            )
+
+        if not self.pairing_window_open():
             return self._response(
                 agent_identity,
                 request.request_id,
                 "DENIED",
-                {"error": str(exc)},
+                {"error": "PAIRING_WINDOW_CLOSED"},
             )
+
+        self._pending_requests[request.request_id] = {
+            "controller_fingerprint": controller_fingerprint,
+            "nonce": nonce,
+            "issued_at": issued_at,
+            "ttl": ttl,
+        }
+        self._used_request_ids.add(request.request_id)
+        self._used_nonces.add(nonce)
 
         return self._response(
             agent_identity,
             request.request_id,
-            "PAIRED",
+            "PAIRING_PENDING",
             {
                 "agent_fingerprint": agent_identity.fingerprint,
                 "controller_fingerprint": controller_fingerprint,
