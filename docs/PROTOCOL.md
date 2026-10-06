@@ -1,72 +1,118 @@
-# HAEP 0.1 — Protocol Contract
+# HAEP — Protocol Notes
 
-This document describes the message-level contract frozen for the GitHub baseline.
+## 1. Protocol scope
 
-## REQUEST lifecycle
+This document describes the current TEST-0001 protocol concepts. It is not yet
+a claim of a frozen production wire specification.
 
-```text
-1. Hermes interprets the user's intent.
-2. Hermes asks the Security/Policy Authority for authorization.
-3. Policy Authority evaluates grants, capability, resource and policy.
-4. Policy Authority signs an AuthorizationAssertion.
-5. RequestBuilder creates the controller-signed REQUEST.
-6. Agent verifies the controller signature.
-7. Agent verifies trust and target identity.
-8. Agent verifies TTL and replay state.
-9. Agent verifies the Policy Authority signature.
-10. Agent verifies that the assertion exactly matches the REQUEST.
-11. Agent executes the registered capability.
-12. Agent returns a signed RESPONSE.
-```
+## 2. Message types
 
-## AuthorizationAssertion binding
+The current implementation includes a pairing flow and request/response flow.
 
-The signed assertion is bound to:
+Relevant concepts include:
 
-```text
-request_id
-controller_fingerprint
-agent_fingerprint
-capability
-resource_id
-nonce
-issued_at
-ttl
-parameters_hash
-allowed
-confirmation
-authority_kid
-```
+- `PAIRING_REQUEST`
+- `PAIRING_RESPONSE`
+- `REQUEST`
+- `RESPONSE`
 
-Changing any request field covered by the assertion invalidates the authorization scope.
+Exact schemas must be taken from the current implementation when implementing
+wire-compatible code.
 
-## Cryptography
+## 3. Pairing request
 
-- Agent/controller/authority identities use Ed25519.
-- Public-key fingerprints use SHA-256.
-- Signed structured data is canonicalized using RFC 8785 JCS.
-- Requests use a unique `request_id`.
-- Requests use a nonce and TTL to limit replay.
+A pairing request carries identity information sufficient for the Agent to:
 
-## Trust
+- identify the controller key;
+- verify that the declared fingerprint matches the key;
+- verify the request signature;
+- validate time policy;
+- detect replay.
 
-Pairing establishes trust between identities. It does not grant every capability.
+An unknown controller is not trusted merely because these checks pass.
 
-Discovery is informational and must never be interpreted as authorization.
+If the pairing window is closed, the new pairing is denied.
 
-## Agent boundary
+If the pairing window is open, the request becomes pending until explicit
+approval.
 
-The Agent must not consult the Policy Authority's `GrantRegistry`. It receives the authorization evidence it needs and verifies it locally.
+## 4. Pairing approval
 
-The Agent owns its domain data and is the canonical source for that domain.
+Approval is separate from receipt of the pairing request.
 
-## Frozen scope
+Approval identifies the pending request and controller fingerprint.
 
-The 0.1 baseline does **not** define:
+Approval must revalidate the original request's time validity.
 
-- agent-to-agent command delegation;
-- direct LLM database access;
-- MAC-address identity;
-- implicit trust based on LAN presence;
-- a large home-automation framework;
-- a mandatory remote cloud security service.
+Only successful approval establishes the paired trust state.
+
+## 5. AuthorizationAssertion
+
+The assertion is signed by the Policy Authority.
+
+The current model includes:
+
+- request_id
+- controller_fingerprint
+- agent_fingerprint
+- capability
+- resource_id
+- nonce
+- issued_at
+- ttl
+- parameters_hash
+- allowed
+- confirmation
+- authority_kid
+- signature
+
+The Agent must verify both the authority signature and the assertion's binding
+to the actual request.
+
+## 6. Request processing
+
+The Agent-side processor must not treat a JSON payload as sufficient authority.
+
+The effective order is conceptually:
+
+1. verify message type;
+2. verify controller/request signature;
+3. verify trust state;
+4. verify target Agent;
+5. verify nonce/request replay state;
+6. validate TTL;
+7. validate capability;
+8. validate resource;
+9. parse and verify AuthorizationAssertion;
+10. verify authorization scope binding;
+11. check authorization decision;
+12. execute capability;
+13. produce response.
+
+The exact implementation is authoritative if this document and the code diverge.
+
+## 7. Cryptographic canonicalization
+
+The current implementation uses canonical signing data for security-sensitive
+objects and RFC 8785/JCS support is part of the project dependencies.
+
+Do not alter canonicalization casually: changing signed representation is a
+protocol change.
+
+## 8. Versioning rule
+
+Changes to signed fields, message types, identity semantics, authorization
+binding or replay behavior are protocol changes and require:
+
+- documentation;
+- tests;
+- explicit review;
+- compatibility consideration.
+
+## 9. Current prototype limitations
+
+The protocol is still a TEST-0001 baseline, not a final interoperability
+standard.
+
+Do not invent fields or compatibility requirements not present in the current
+code.

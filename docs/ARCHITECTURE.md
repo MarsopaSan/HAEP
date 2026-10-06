@@ -1,48 +1,148 @@
-# HAEP 0.1 — Architecture
+# HAEP — Architecture
 
-## Separation of responsibilities
+## 1. Goal
+
+HAEP is a local architecture for a central assistant/orchestrator (Hermes)
+working with specialized Agents.
+
+The design separates interpretation, authorization and execution.
+
+## 2. Main components
+
+### Hermes
+
+Hermes is the general assistant and orchestrator.
+
+Responsibilities:
+
+- understand user intent;
+- reason and calculate;
+- decide whether an Agent is needed;
+- construct a request through the defined request path;
+- present results to the user.
+
+Hermes is **not** the final security authority.
+
+The LLM itself is outside the trusted security boundary.
+
+### Policy Authority
+
+The Policy Authority is the deterministic authorization component.
+
+Responsibilities:
+
+- evaluate grants and policy;
+- determine allow/deny;
+- issue a signed AuthorizationAssertion;
+- bind authorization to the concrete request.
+
+The Policy Authority must not be replaced by an LLM judgment.
+
+### Agent
+
+An Agent owns a specific domain.
+
+Responsibilities:
+
+- maintain canonical domain state;
+- advertise its capabilities/resources;
+- authenticate the controller;
+- verify authorization;
+- enforce TTL and replay protection;
+- execute only authorized capabilities.
+
+### RequestBuilder
+
+RequestBuilder creates the request that carries the authorization assertion
+and is signed by the controller identity.
+
+### RequestProcessor
+
+RequestProcessor is the Agent-side enforcement point.
+
+It verifies, among other things:
+
+- request type;
+- request signature;
+- trusted controller;
+- target Agent;
+- nonce / replay state;
+- TTL / time policy;
+- capability;
+- resource;
+- AuthorizationAssertion signature;
+- authorization binding.
+
+Only after these checks may the capability execute.
+
+## 3. Trust boundaries
+
+The important boundaries are:
 
 ```text
 User
-  ↓
-Hermes / Local LLM
-  ├─ answers general questions itself
-  ├─ interprets intent
-  └─ decides when an agent/tool is needed
-           ↓
-Security / Policy Authority
-  ├─ Trust / pairing state
-  ├─ Grants
-  ├─ capability + resource authorization
-  ├─ confirmation requirements
-  └─ signs AuthorizationAssertion
-           ↓
+  |
+  v
+Hermes / LLM
+  |
+  | request proposal
+  v
+Policy Authority
+  |
+  | signed authorization
+  v
 RequestBuilder
-  └─ creates controller-signed REQUEST containing the assertion
-           ↓
+  |
+  | signed request
+  v
 Agent
-  ├─ verifies controller signature
-  ├─ verifies Policy Authority signature
-  ├─ verifies assertion scope matches the REQUEST
-  ├─ validates trust / TTL / replay / capability / resource
-  └─ executes only the requested domain operation
+  |
+  v
+Domain data / execution
 ```
 
-The Agent does **not** consult the GrantRegistry. The GrantRegistry is authority-side state.
+The LLM is not allowed to bypass the Policy Authority.
 
-The Policy Authority is intentionally modeled as a separate security component even if, in the first local implementation, it runs as a local process/module alongside Hermes. The trust boundary and message contract come first; process isolation can be added later.
+The Agent is the final enforcement point for its own capabilities.
 
-## Hermes as general local assistant
+## 4. Pairing boundary
 
-Hermes is not only a router. It can answer ordinary questions with its local LLM and tools. An agent is invoked only when the question needs authoritative domain data or an action.
+Discovery is only a mechanism for finding candidates.
 
-Example:
+Pairing establishes trust.
 
-1. User: “¿Cuántas cenas de $X puedo pagar este mes con lo disponible?”
-2. Hermes interprets the calculation request.
-3. Hermes asks the Finance Agent for the authoritative available amount.
-4. The Finance Agent returns canonical financial data.
-5. Hermes performs the arithmetic locally.
-6. Hermes answers the user and can show the source agent/data used.
+Authorization grants permission to perform capabilities.
 
-The LLM never receives direct database access. The Finance Agent remains authoritative over its own financial state.
+These are three distinct concepts:
+
+```text
+Discovery
+    !=
+Pairing / Trust
+    !=
+Capability Authorization
+```
+
+## 5. Data ownership
+
+Each Agent owns its canonical business/domain data.
+
+Hermes may receive authorized results, but should not become a second canonical
+database for every domain.
+
+This avoids turning Hermes into a centralized business-data authority.
+
+## 6. TEST-0001 philosophy
+
+TEST-0001 validates the minimum security architecture.
+
+It deliberately avoids premature infrastructure such as MQTT, complex PKI,
+automatic quarantine or broad home-automation integration.
+
+The objective is to prove the security boundaries first.
+
+## 7. Future evolution
+
+Future additions may include more Agents, discovery, home devices and richer
+authorization workflows, but they must preserve the core separation unless a
+new architectural decision explicitly replaces it.
