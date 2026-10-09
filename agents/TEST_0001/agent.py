@@ -18,9 +18,17 @@ MANIFEST_PATH = AGENT_DIR / "manifest" / "manifest.json"
 class HaepAgent:
     """Agente HAEP de prueba. Al arrancar queda UNPAIRED hasta un PAIRING_REQUEST."""
 
-    def __init__(self, require_known_controller: bool = False, policy_authority_public_key: bytes | None = None):
+    def __init__(
+        self,
+        require_known_controller: bool = False,
+        policy_authority_public_key: bytes | None = None,
+        identity_path: Path = IDENTITY_PATH,
+        manifest_path: Path = MANIFEST_PATH,
+    ):
         self.identity = None
         self.manifest = None
+        self.identity_path = identity_path
+        self.manifest_path = manifest_path
         self.trust = TrustManager()
         self.pairing = PairingService(
             require_known_controller=require_known_controller,
@@ -39,20 +47,22 @@ class HaepAgent:
         print()
 
         print("Loading Identity...")
-        if not IDENTITY_PATH.exists():
+        if not self.identity_path.exists():
             raise FileNotFoundError(
-                f"Identity no encontrada: {IDENTITY_PATH}"
+                f"Identity no encontrada: {self.identity_path}"
             )
-        self.identity = Identity.load(IDENTITY_PATH)
+
+        self.identity = Identity.load(self.identity_path)
         print("Identity loaded.")
         print()
 
         print("Loading Manifest...")
-        if not MANIFEST_PATH.exists():
+        if not self.manifest_path.exists():
             raise FileNotFoundError(
-                f"Manifest no encontrado: {MANIFEST_PATH}"
+                f"Manifest no encontrado: {self.manifest_path}"
             )
-        self.manifest = load_manifest(MANIFEST_PATH)
+
+        self.manifest = load_manifest(self.manifest_path)
         print("Manifest loaded.")
         print()
 
